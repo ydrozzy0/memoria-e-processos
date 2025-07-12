@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Monitor de Sistema</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background-color: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 0;
+    }
+
+    .container {
+      background: white;
+      padding: 30px 40px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+      border: 1px solid #ccc;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    h2 {
+      margin-top: 25px;
+      margin-bottom: 10px;
+      color: #444;
+      font-size: 20px;
+    }
+
+    .bar {
+      width: 100%;
+      background: #ddd;
+      border-radius: 6px;
+      overflow: hidden;
+      height: 25px;
+      margin-bottom: 8px;
+    }
+
+    .fill {
+      height: 100%;
+      background: #28a745;
+      text-align: right;
+      padding-right: 8px;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+      transition: width 0.5s;
+    }
+
+    p {
+      font-size: 15px;
+      margin-bottom: 20px;
+      color: #555;
+    }
+
+    ul {
+      margin-top: 10px;
+      padding-left: 20px;
+    }
+
+    li {
+      font-size: 14px;
+      margin-bottom: 6px;
+      color: #444;
+    }
+
+    .regex-form {
+      display: flex;
+      margin-bottom: 15px;
+    }
+
+    .regex-form input {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px 0 0 6px;
+      font-size: 14px;
+    }
+
+    .regex-form button {
+      padding: 8px 14px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .regex-form button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Monitor de Sistema</h1>
+
+    <form class="regex-form" onsubmit="aplicarFiltro(event)">
+      <input type="text" id="regex-input" placeholder="Digite uma regex para filtrar processos...">
+      <button type="submit">Filtrar</button>
+    </form>
+
+    <h2>Memória RAM</h2>
+    <div class="bar"><div id="ram-fill" class="fill"></div></div>
+    <p id="ram-text">Carregando...</p>
+
+    <h2>HD</h2>
+    <div class="bar"><div id="hd-fill" class="fill"></div></div>
+    <p id="hd-text">Carregando...</p>
+
+    <h2>Processos</h2>
+    <ul id="process-list"></ul>
+  </div>
+
+  <script>
+  let regexAtual = '';
+
+  async function atualizar() {
+    try {
+      const res = await fetch(`/stats?regex=${encodeURIComponent(regexAtual)}`);
+      const data = await res.json();
+
+      const ramUsedPercent = (data.ram.used / data.ram.total) * 100;
+      const hdUsedPercent = (data.hd.used / data.hd.total) * 100;
+
+      document.getElementById('ram-fill').style.width = ramUsedPercent + '%';
+      document.getElementById('ram-fill').textContent = ramUsedPercent.toFixed(1) + '%';
+      document.getElementById('ram-text').textContent =
+        `Usado: ${(data.ram.used / 1e9).toFixed(2)} GB / ${(data.ram.total / 1e9).toFixed(2)} GB | Livre: ${(data.ram.free / 1e9).toFixed(2)} GB`;
+
+      document.getElementById('hd-fill').style.width = hdUsedPercent + '%';
+      document.getElementById('hd-fill').textContent = hdUsedPercent.toFixed(1) + '%';
+      document.getElementById('hd-text').textContent =
+        `Usado: ${(data.hd.used / 1e9).toFixed(2)} GB / ${(data.hd.total / 1e9).toFixed(2)} GB | Livre: ${(data.hd.free / 1e9).toFixed(2)} GB`;
+
+      const list = document.getElementById('process-list');
+      list.innerHTML = '';
+      data.processes.forEach(p => {
+        const item = document.createElement('li');
+
+        let imgHTML = '';
+        if (p.icon_base64) {
+          imgHTML = `<img src="data:image/png;base64,${p.icon_base64}" style="width:16px; height:16px; vertical-align:middle; margin-right:8px; border-radius:3px;">`;
+        }
+
+        item.innerHTML = `${imgHTML} ${p.name} (PID: ${p.pid}) - ${(p.mem_bytes / 1e6).toFixed(1)} MB`;
+        list.appendChild(item);
+      });
+    } catch (err) {
+      document.getElementById('ram-text').textContent = 'Erro ao carregar dados';
+      document.getElementById('hd-text').textContent = 'Erro ao carregar dados';
+      document.getElementById('process-list').innerHTML = '<li>Erro ao carregar dados</li>';
+      console.error('Erro:', err);
+    }
+  }
+
+  function aplicarFiltro(event) {
+    event.preventDefault();
+    regexAtual = document.getElementById('regex-input').value.trim();
+    atualizar();
+  }
+
+  atualizar();
+  setInterval(atualizar, 5000);
+</script>
+
